@@ -419,6 +419,14 @@ def load_image_folder(root: Path, split: str) -> np.ndarray:
     return np.asarray(images)[..., np.newaxis]
 
 
+def image_paths_for_split(root: Path, split: str) -> list[Path]:
+    image_dir = root / f"keras_png_slices_{split}"
+    image_paths = sorted(image_dir.glob("case_*.png"))
+    if not image_paths:
+        raise FileNotFoundError(f"No case_*.png images found in {image_dir}")
+    return image_paths
+
+
 def build_vae(input_shape=(128, 128, 1), latent_dim: int = 2):
     import tensorflow as tf
 
@@ -445,14 +453,27 @@ def build_vae(input_shape=(128, 128, 1), latent_dim: int = 2):
 def run_vae(data_root: Path, epochs: int, latent_dim: int = 2, output_dir: Path = Path("demo_outputs/vae")) -> None:
     import matplotlib.pyplot as plt
     import tensorflow as tf
+    from PIL import Image
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    x_train = load_image_folder(data_root, "train")
-    x_test = load_image_folder(data_root, "test")
-    input_shape = x_train.shape[1:]
+    train_paths = image_paths_for_split(data_root, "train")
+    with Image.open(train_paths[0]) as first_image:
+        input_shape = (first_image.height, first_image.width, 1)
     encoder, decoder = build_vae(input_shape, latent_dim)
     optimizer = tf.keras.optimizers.Adam(1e-3)
-    dataset = tf.data.Dataset.from_tensor_slices(x_train).shuffle(1024).batch(32)
+
+    def load_image(path):
+        image = tf.io.read_file(path)
+        image = tf.image.decode_png(image, channels=1)
+        return tf.cast(image, tf.float32) / 255.0
+
+    dataset = (
+        tf.data.Dataset.from_tensor_slices([str(path) for path in train_paths])
+        .shuffle(min(1024, len(train_paths)))
+        .map(load_image, num_parallel_calls=1)
+        .batch(8)
+        .prefetch(1)
+    )
 
     @tf.function
     def train_step(batch):
@@ -503,7 +524,11 @@ def run_vae(data_root: Path, epochs: int, latent_dim: int = 2, output_dir: Path 
         plt.savefig(output_dir / "vae_latent_manifold.png", dpi=160, bbox_inches="tight")
         plt.show()
     else:
-        z_mean_test, _ = encoder.predict(x_test, verbose=0)
+        test_paths = image_paths_for_split(data_root, "test")
+        test_dataset = tf.data.Dataset.from_tensor_slices([str(path) for path in test_paths]).map(
+            load_image, num_parallel_calls=1
+        ).batch(8)
+        z_mean_test = encoder.predict(test_dataset, verbose=0)[0]
         try:
             import importlib
 
