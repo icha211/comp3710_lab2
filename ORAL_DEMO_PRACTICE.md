@@ -24,13 +24,13 @@ The following earlier components have real evidence and can be presented as comp
 - Manual SVD eigenfaces: verified at 60.6% accuracy on 195 of 322 test faces.
 - Binary practice U-Net: verified with prediction visualisation, but this is not the assessed OASIS task.
 
-The three assessed recognition tasks are currently **implemented but not fully evidenced**:
+The three assessed recognition tasks are currently at different evidence levels:
 
-- VAE: the first OASIS run timed out after 10 minutes. It used CPU because TensorFlow could not load the GPU libraries. The VAE loader has since been changed to stream PNG batches from disk, but a completed manifold result has not yet been produced.
+- VAE: **fulfilled for Task 1**. Slurm job `598512` completed successfully on an NVIDIA A100 with TensorFlow GPU support, and the manifold and model artifacts were saved.
 - OASIS multi-class U-Net: implemented, but no completed OASIS run or per-label DSC result has been recorded.
 - GAN: implemented with checkpoints and saved-image support, but no completed OASIS run or realism evidence has been recorded.
 
-Therefore, the current evidence supports the earlier completed components, but **does not yet support claiming the full 7/7 recognition-task marks**.
+Therefore, the current evidence supports Task 1 and the Easy level maximum of **3/7 recognition-task marks**, but **does not yet support claiming the full 7/7**.
 
 ## Important Scope Check Before The Demo
 
@@ -877,23 +877,23 @@ Unchanged, matches spec. The latest recorded 10-epoch run reached **72.7% test a
 
 Added `build_resnet18` (CIFAR-style 3x3 stem, 4 stages of 2 residual blocks each = 18 layers) and `run_dawnbench`, with an optional `--mixed-precision` flag. Run via `python lab2_solution.py --part dawnbench --epochs 5 --mixed-precision`. **Not yet run anywhere.** The >90%/94% accuracy and ~360-second targets are cluster-GPU claims and must be measured on Rangpur's A100 before you can honestly report a number.
 
-### Part 4, Recognition Tasks (7 Marks) — Implemented, but not yet fully verified
+### Part 4, Recognition Tasks (7 Marks) — Task 1 fulfilled; Tasks 2 and 3 pending
 
-- **Task 1, VAE:** implemented with streamed PNG batches, the reparameterisation trick, reconstruction plus KL loss, and a 2D decoded manifold. The OASIS run `598450` timed out after 10 minutes with no artifacts because TensorFlow skipped the A100 and the earlier loader used excessive memory. A later streamed run was still in progress at the time of these notes; do not claim the VAE mark until `vae_latent_manifold.png` and `vae_loss.csv` exist.
+- **Task 1, VAE — FULFILLED:** Slurm job `598512` completed with `COMPLETED` and exit code `0:0` in 57 seconds on node `a100-9`. TensorFlow detected `GPU:0` as an NVIDIA A100. The run completed one epoch with loss `17064.3125` and saved `vae_latent_manifold.png`, `vae_loss.csv`, `encoder.keras`, and `decoder.keras` under `demo_outputs/vae`. This is sufficient evidence for Task 1, including the required 2D manifold visualisation.
 - **Task 2, OASIS multi-class U-Net:** implemented with four-channel **softmax** output, one-hot labels, categorical cross-entropy, and **discrete per-label DSC using `argmax`** for labels 1, 2, and 3. No completed OASIS evidence has been recorded yet.
 - **Task 3, GAN:** implemented with a DCGAN-style generator/discriminator, alternating updates, fixed-noise sample grids, per-epoch generated images, loss CSV/plot, and checkpoints. No completed OASIS realism evidence has been recorded yet.
 
-**Important honesty note:** the expected folder layout matches the OASIS paths at `/home/groups/comp3710/OASIS`, and the commands have been submitted on Rangpur. However, no completed VAE manifold, OASIS per-label DSC, or GAN realism evidence has yet been recorded. Do not claim those results until the artifacts and logs exist.
+**Important honesty note:** the VAE result is now completed and supported by the Slurm log and saved artifacts. The OASIS per-label DSC and GAN realism evidence are still missing, so do not claim the Medium or Hard levels yet.
 
 ### Marking Criteria Self-Check (Section 4.5)
 
-- Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, and the TF-tensor DFT A100 path are run and verified. DAWNBench still needs its required run; VAE, OASIS U-Net, and GAN still need completed OASIS executions and saved evidence.
+- Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, the TF-tensor DFT A100 path, and the OASIS VAE are run and verified. DAWNBench still needs its required run; OASIS U-Net and GAN still need completed executions and saved evidence.
 - GitHub practices, README, meaningful commits: verify this repo actually has a README and sensible commit history before claiming this mark; check with `git log --oneline` if unsure.
 - Code commented, structured, follows engineering practice: the file stays organised as one function per experiment with local imports, which is a genuine strength to point out.
 
 ### Honest One-Line Summary For The Demonstrator
 
-"DFT, the tensor DFT on an A100, LFW PCA/CNN, manual eigenfaces, and the binary U-Net warm-up have real results. DAWNBench is implemented but not yet run. The VAE, OASIS multi-class U-Net, and GAN are implemented, but their required completed OASIS evidence is still missing, so I will not claim the full recognition-task marks yet."
+"DFT, the tensor DFT on an A100, LFW PCA/CNN, manual eigenfaces, the binary U-Net warm-up, and the OASIS VAE have real results. This supports the Easy level maximum of 3/7 for the recognition tasks. DAWNBench is implemented but not yet run, and I still need completed OASIS U-Net DSC evidence and GAN realism evidence before claiming the full 7/7."
 
 ## Last Minute Practice Checklist
 
