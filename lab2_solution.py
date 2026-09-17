@@ -442,10 +442,11 @@ def build_vae(input_shape=(128, 128, 1), latent_dim: int = 2):
     return encoder, decoder
 
 
-def run_vae(data_root: Path, epochs: int, latent_dim: int = 2) -> None:
+def run_vae(data_root: Path, epochs: int, latent_dim: int = 2, output_dir: Path = Path("demo_outputs/vae")) -> None:
     import matplotlib.pyplot as plt
     import tensorflow as tf
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     x_train = load_image_folder(data_root, "train")
     x_test = load_image_folder(data_root, "test")
     input_shape = x_train.shape[1:]
@@ -472,11 +473,18 @@ def run_vae(data_root: Path, epochs: int, latent_dim: int = 2) -> None:
         optimizer.apply_gradients(zip(gradients, trainable_vars))
         return loss
 
+    loss_history = []
     for epoch in range(epochs):
         epoch_loss = tf.keras.metrics.Mean()
         for batch in dataset:
             epoch_loss.update_state(train_step(batch))
-        print(f"Epoch {epoch + 1}/{epochs}: loss={epoch_loss.result():.4f}")
+        loss_value = float(epoch_loss.result())
+        loss_history.append(loss_value)
+        print(f"Epoch {epoch + 1}/{epochs}: loss={loss_value:.4f}")
+
+    np.savetxt(output_dir / "vae_loss.csv", np.asarray(loss_history), delimiter=",", header="loss", comments="")
+    encoder.save(output_dir / "encoder.keras")
+    decoder.save(output_dir / "decoder.keras")
 
     if latent_dim == 2:
         grid_size = 15
@@ -492,11 +500,14 @@ def run_vae(data_root: Path, epochs: int, latent_dim: int = 2) -> None:
         plt.imshow(canvas, cmap="gray")
         plt.title("VAE latent manifold (2D grid sampling)")
         plt.axis("off")
+        plt.savefig(output_dir / "vae_latent_manifold.png", dpi=160, bbox_inches="tight")
         plt.show()
     else:
         z_mean_test, _ = encoder.predict(x_test, verbose=0)
         try:
-            import umap
+            import importlib
+
+            umap = importlib.import_module("umap")
 
             projected = umap.UMAP(n_components=2, random_state=42).fit_transform(z_mean_test)
             method = "UMAP"
@@ -508,6 +519,7 @@ def run_vae(data_root: Path, epochs: int, latent_dim: int = 2) -> None:
         plt.figure(figsize=(8, 8))
         plt.scatter(projected[:, 0], projected[:, 1], s=5, alpha=0.6)
         plt.title(f"VAE latent space projected with {method}")
+        plt.savefig(output_dir / "vae_latent_projection.png", dpi=160, bbox_inches="tight")
         plt.show()
 
 
@@ -573,10 +585,13 @@ def discrete_dice_per_label(y_true_labels: np.ndarray, y_pred_labels: np.ndarray
     return float(2.0 * np.logical_and(true_mask, pred_mask).sum() / denominator)
 
 
-def run_oasis_unet(data_root: Path, epochs: int, num_classes: int = 4) -> None:
+def run_oasis_unet(
+    data_root: Path, epochs: int, num_classes: int = 4, output_dir: Path = Path("demo_outputs/oasis_unet")
+) -> None:
     import matplotlib.pyplot as plt
     import tensorflow as tf
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     x_train, y_train = load_oasis_multiclass_split(data_root, "train", num_classes)
     x_validate, y_validate = load_oasis_multiclass_split(data_root, "validate", num_classes)
     x_test, y_test = load_oasis_multiclass_split(data_root, "test", num_classes)
@@ -587,13 +602,24 @@ def run_oasis_unet(data_root: Path, epochs: int, num_classes: int = 4) -> None:
     model = unet_model_multiclass(x_train.shape[1:], num_classes)
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="categorical_crossentropy", metrics=["accuracy"])
     model.summary()
-    model.fit(x_train, y_train_onehot, validation_data=(x_validate, y_validate_onehot), epochs=epochs, batch_size=8)
+    history = model.fit(
+        x_train, y_train_onehot, validation_data=(x_validate, y_validate_onehot), epochs=epochs, batch_size=8
+    )
 
     predicted_labels = np.argmax(model.predict(x_test, verbose=0), axis=-1)
     print("Discrete test DSC per foreground label:")
+    dice_scores = {}
     for label in range(1, num_classes):
         scores = [discrete_dice_per_label(y_test[i], predicted_labels[i], label) for i in range(len(y_test))]
-        print(f"  Label {label}: mean DSC = {np.mean(scores):.4f}")
+        dice_scores[label] = float(np.mean(scores))
+        print(f"  Label {label}: mean DSC = {dice_scores[label]:.4f}")
+
+    (output_dir / "test_dsc.txt").write_text(
+        "\n".join(f"Label {label}: mean DSC = {score:.4f}" for label, score in dice_scores.items()),
+        encoding="utf-8",
+    )
+    model.save(output_dir / "oasis_unet.keras")
+    np.savetxt(output_dir / "unet_training_loss.csv", np.asarray(history.history["loss"]), delimiter=",", header="loss", comments="")
 
     figure, axes = plt.subplots(4, 3, figsize=(9, 12))
     for row in range(min(4, len(x_test))):
@@ -606,6 +632,7 @@ def run_oasis_unet(data_root: Path, epochs: int, num_classes: int = 4) -> None:
     axes[0, 1].set_title("Ground truth labels")
     axes[0, 2].set_title("Predicted labels")
     figure.tight_layout()
+    figure.savefig(output_dir / "segmentation_predictions.png", dpi=160, bbox_inches="tight")
     plt.show()
 
 
@@ -643,10 +670,17 @@ def build_gan_discriminator(input_shape=(128, 128, 1)):
     return tf.keras.Model(inputs, outputs, name="discriminator")
 
 
-def run_gan(data_root: Path, epochs: int, latent_dim: int = 128, checkpoint_dir: str = "gan_checkpoints") -> None:
+def run_gan(
+    data_root: Path,
+    epochs: int,
+    latent_dim: int = 128,
+    checkpoint_dir: str = "gan_checkpoints",
+    output_dir: Path = Path("demo_outputs/gan"),
+) -> None:
     import matplotlib.pyplot as plt
     import tensorflow as tf
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     x_train = load_image_folder(data_root, "train") * 2.0 - 1.0  # scale to [-1, 1] for tanh output
     input_shape = x_train.shape[1:]
 
@@ -666,6 +700,8 @@ def run_gan(data_root: Path, epochs: int, latent_dim: int = 128, checkpoint_dir:
     )
     fixed_noise = tf.random.normal((16, latent_dim), seed=42)
     dataset = tf.data.Dataset.from_tensor_slices(x_train).shuffle(1024).batch(32, drop_remainder=True)
+    generator_losses = []
+    discriminator_losses = []
 
     @tf.function
     def train_step(real_images):
@@ -696,7 +732,34 @@ def run_gan(data_root: Path, epochs: int, latent_dim: int = 128, checkpoint_dir:
             f"Epoch {epoch + 1}/{epochs}: generator_loss={generator_loss_metric.result():.4f}, "
             f"discriminator_loss={discriminator_loss_metric.result():.4f}"
         )
+        generator_losses.append(float(generator_loss_metric.result()))
+        discriminator_losses.append(float(discriminator_loss_metric.result()))
+        epoch_samples = (generator(fixed_noise, training=False).numpy() + 1.0) / 2.0
+        epoch_figure, epoch_axes = plt.subplots(4, 4, figsize=(8, 8))
+        for index, axis in enumerate(epoch_axes.flat):
+            axis.imshow(epoch_samples[index, ..., 0], cmap="gray", vmin=0.0, vmax=1.0)
+            axis.axis("off")
+        epoch_figure.suptitle(f"Generated brain slices, epoch {epoch + 1}")
+        epoch_figure.savefig(output_dir / f"generated_epoch_{epoch + 1:03d}.png", dpi=140, bbox_inches="tight")
+        plt.close(epoch_figure)
         checkpoint.save(str(checkpoint_path / "ckpt"))  # keep a checkpoint each epoch in case of later collapse
+
+    np.savetxt(
+        output_dir / "gan_losses.csv",
+        np.column_stack((generator_losses, discriminator_losses)),
+        delimiter=",",
+        header="generator_loss,discriminator_loss",
+        comments="",
+    )
+    loss_figure = plt.figure(figsize=(8, 4))
+    plt.plot(generator_losses, label="generator")
+    plt.plot(discriminator_losses, label="discriminator")
+    plt.xlabel("Epoch")
+    plt.ylabel("Binary cross-entropy")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    loss_figure.tight_layout()
+    loss_figure.savefig(output_dir / "gan_loss_curves.png", dpi=160, bbox_inches="tight")
 
     samples = (generator(fixed_noise, training=False).numpy() + 1.0) / 2.0
     figure, axes = plt.subplots(4, 4, figsize=(8, 8))
@@ -704,6 +767,7 @@ def run_gan(data_root: Path, epochs: int, latent_dim: int = 128, checkpoint_dir:
         axis.imshow(samples[index, ..., 0], cmap="gray")
         axis.axis("off")
     figure.suptitle("Generated 2D brain slices")
+    figure.savefig(output_dir / "generated_final.png", dpi=160, bbox_inches="tight")
     plt.show()
 
 
@@ -729,6 +793,7 @@ def main() -> None:
     parser.add_argument("--latent-dim", type=int, default=2)
     parser.add_argument("--num-classes", type=int, default=4)
     parser.add_argument("--mixed-precision", action="store_true")
+    parser.add_argument("--output-dir", type=Path, default=Path("demo_outputs"))
     args = parser.parse_args()
 
     if args.part == "dft":
@@ -746,11 +811,11 @@ def main() -> None:
     elif args.part == "unet":
         run_unet(args.data_root, args.epochs)
     elif args.part == "vae":
-        run_vae(args.data_root, args.epochs, args.latent_dim)
+        run_vae(args.data_root, args.epochs, args.latent_dim, args.output_dir / "vae")
     elif args.part == "oasis-unet":
-        run_oasis_unet(args.data_root, args.epochs, args.num_classes)
+        run_oasis_unet(args.data_root, args.epochs, args.num_classes, args.output_dir / "oasis_unet")
     else:
-        run_gan(args.data_root, args.epochs, args.latent_dim)
+        run_gan(args.data_root, args.epochs, args.latent_dim, output_dir=args.output_dir / "gan")
 
 
 if __name__ == "__main__":
