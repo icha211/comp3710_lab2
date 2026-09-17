@@ -14,9 +14,27 @@ Based on the course clarification, prepare for all of these areas:
 
 Do not describe every line from memory. Be ready to explain the purpose, input, output, and design reason for every major function. A good answer follows this pattern: "The input is ..., this step does ..., it produces ..., and this is needed because ...."
 
+## Current Verified Status
+
+The following earlier components have real evidence and can be presented as completed:
+
+- NumPy DFT and Fourier reconstruction: verified locally and on Rangpur CPU.
+- Tensor DFT CPU/GPU comparison: verified in Slurm job `598416` on an A100.
+- LFW PCA plus Random Forest/CNN: verified, including the recorded CNN accuracy of 72.7%.
+- Manual SVD eigenfaces: verified at 60.6% accuracy on 195 of 322 test faces.
+- Binary practice U-Net: verified with prediction visualisation, but this is not the assessed OASIS task.
+
+The three assessed recognition tasks are currently **implemented but not fully evidenced**:
+
+- VAE: the first OASIS run timed out after 10 minutes. It used CPU because TensorFlow could not load the GPU libraries. The VAE loader has since been changed to stream PNG batches from disk, but a completed manifold result has not yet been produced.
+- OASIS multi-class U-Net: implemented, but no completed OASIS run or per-label DSC result has been recorded.
+- GAN: implemented with checkpoints and saved-image support, but no completed OASIS run or realism evidence has been recorded.
+
+Therefore, the current evidence supports the earlier completed components, but **does not yet support claiming the full 7/7 recognition-task marks**.
+
 ## Important Scope Check Before The Demo
 
-The present `lab2_solution.py` demonstrates DFT, LFW PCA plus CNN classification, and a **binary** U-Net using the supplied PNG dataset. It does **not** implement the compulsory OASIS multi-class U-Net, VAE, GAN, CIFAR/DAWNBench timing, or a Rangpur Slurm training job.
+The local `lab2_solution.py` contains the assessed OASIS VAE, multi-class U-Net, and GAN implementations, but implementation alone is not evidence of a mark. Only report a recognition-task result after the corresponding OASIS command completes and its required outputs are saved.
 
 Say this honestly if asked:
 
@@ -859,23 +877,23 @@ Unchanged, matches spec. The latest recorded 10-epoch run reached **72.7% test a
 
 Added `build_resnet18` (CIFAR-style 3x3 stem, 4 stages of 2 residual blocks each = 18 layers) and `run_dawnbench`, with an optional `--mixed-precision` flag. Run via `python lab2_solution.py --part dawnbench --epochs 5 --mixed-precision`. **Not yet run anywhere.** The >90%/94% accuracy and ~360-second targets are cluster-GPU claims and must be measured on Rangpur's A100 before you can honestly report a number.
 
-### Part 4, Recognition Tasks (7 Marks) — Now implemented, not yet run, and not yet pointed at real OASIS data
+### Part 4, Recognition Tasks (7 Marks) — Implemented, but not yet fully verified
 
-- **Task 1, VAE:** added `build_vae` and `run_vae`. Loads image-only PNG splits via new `load_image_folder`, trains a convolutional encoder/decoder with the reparameterisation trick and a combined reconstruction + KL loss via a custom `tf.GradientTape` step. Visualises the manifold as a 2D decoded grid when `--latent-dim 2` (default), or via UMAP (falling back to PCA if `umap-learn` isn't installed) for higher latent dimensions. Run via `python lab2_solution.py --part vae --data-root <path> --epochs 10`.
-- **Task 2, OASIS multi-class U-Net:** added `load_oasis_multiclass_split` (remaps 8-bit mask pixel values to integer labels 0..3), `unet_model_multiclass` (four-channel **softmax** output, satisfying the one-hot requirement), and `run_oasis_unet`, which one-hot encodes labels, trains with categorical cross-entropy, then computes **discrete per-label DSC using `argmax`** for labels 1, 2, 3 exactly as the task sheet specifies. Run via `python lab2_solution.py --part oasis-unet --data-root <path> --epochs 10`.
-- **Task 3, GAN:** added `build_gan_generator`, `build_gan_discriminator`, and `run_gan`: a DCGAN-style generator/discriminator pair, alternating discriminator/generator updates via `tf.GradientTape`, a fixed noise vector for comparable sample grids across epochs, and a `tf.train.Checkpoint` saved every epoch so a good generator isn't lost to later collapse. Run via `python lab2_solution.py --part gan --data-root <path> --epochs 20 --latent-dim 128`.
+- **Task 1, VAE:** implemented with streamed PNG batches, the reparameterisation trick, reconstruction plus KL loss, and a 2D decoded manifold. The OASIS run `598450` timed out after 10 minutes with no artifacts because TensorFlow skipped the A100 and the earlier loader used excessive memory. A later streamed run was still in progress at the time of these notes; do not claim the VAE mark until `vae_latent_manifold.png` and `vae_loss.csv` exist.
+- **Task 2, OASIS multi-class U-Net:** implemented with four-channel **softmax** output, one-hot labels, categorical cross-entropy, and **discrete per-label DSC using `argmax`** for labels 1, 2, and 3. No completed OASIS evidence has been recorded yet.
+- **Task 3, GAN:** implemented with a DCGAN-style generator/discriminator, alternating updates, fixed-noise sample grids, per-epoch generated images, loss CSV/plot, and checkpoints. No completed OASIS realism evidence has been recorded yet.
 
-**Important honesty note:** all three Part 4 commands currently point at the same local PNG folder layout used for the practice U-Net (`keras_png_slices_<split>` / `keras_png_slices_seg_<split>`), not the actual OASIS dataset at `/home/groups/comp3710/` on Rangpur. The code is written generically enough to work against real OASIS paths, but **you have not yet run any of these three on OASIS data or on Rangpur**, so do not claim VAE manifold quality, OASIS per-label DSC, or GAN brain realism as achieved results until you actually execute them there and save the evidence.
+**Important honesty note:** the expected folder layout matches the OASIS paths at `/home/groups/comp3710/OASIS`, and the commands have been submitted on Rangpur. However, no completed VAE manifold, OASIS per-label DSC, or GAN realism evidence has yet been recorded. Do not claim those results until the artifacts and logs exist.
 
 ### Marking Criteria Self-Check (Section 4.5)
 
-- Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, and the TF-tensor DFT CPU path are run and verified. The tensor DFT still needs a Slurm-allocated GPU run; DAWNBench, VAE, OASIS U-Net, and GAN still need their required executions and saved evidence.
+- Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, and the TF-tensor DFT A100 path are run and verified. DAWNBench still needs its required run; VAE, OASIS U-Net, and GAN still need completed OASIS executions and saved evidence.
 - GitHub practices, README, meaningful commits: verify this repo actually has a README and sensible commit history before claiming this mark; check with `git log --oneline` if unsure.
 - Code commented, structured, follows engineering practice: the file stays organised as one function per experiment with local imports, which is a genuine strength to point out.
 
 ### Honest One-Line Summary For The Demonstrator
 
-"DFT, PCA/Random-Forest versus CNN on LFW, the binary U-Net warm-up, and manual-SVD eigenfaces are run with real results. The tensor DFT also runs on both my local CPU and Rangpur's login CPU, but I still need a Slurm GPU allocation for genuine GPU timings. DAWNBench, VAE, multi-class OASIS U-Net, and GAN are implemented but not yet executed on their required Rangpur data and GPU environment, so I will not claim results for them yet."
+"DFT, the tensor DFT on an A100, LFW PCA/CNN, manual eigenfaces, and the binary U-Net warm-up have real results. DAWNBench is implemented but not yet run. The VAE, OASIS multi-class U-Net, and GAN are implemented, but their required completed OASIS evidence is still missing, so I will not claim the full recognition-task marks yet."
 
 ## Last Minute Practice Checklist
 
