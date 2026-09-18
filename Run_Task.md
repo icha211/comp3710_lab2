@@ -62,7 +62,7 @@ Explain the encoder, reparameterisation trick, reconstruction loss, KL loss, and
 ```bash
 python lab2_solution.py --part oasis-unet \
   --data-root /home/groups/comp3710/OASIS \
-  --epochs 20 --num-classes 4 --output-dir demo_outputs
+  --epochs 30 --num-classes 4 --output-dir demo_outputs
 ```
 
 Show these files and terminal output:
@@ -74,7 +74,7 @@ demo_outputs/oasis_unet/oasis_unet.keras
 demo_outputs/oasis_unet/unet_training_loss.csv
 ```
 
-The final test output must show mean DSC above `0.9` for labels 1, 2, and 3. The training objective combines categorical cross-entropy with foreground Dice loss, so the smaller foreground classes are not ignored by the dominant background. Explain that the network has four softmax channels, the masks are one-hot encoded, and predictions are converted back to labels with `argmax` for discrete DSC.
+The final test output must show mean DSC above `0.9` for labels 1, 2, and 3. The training objective combines softened class-balanced categorical cross-entropy with foreground Dice loss, and the best validation checkpoint is used for test evaluation. Explain that the network has four softmax channels, the masks are one-hot encoded, and predictions are converted back to labels with `argmax` for discrete DSC.
 
 For the live inference demonstration, use the saved model or the test predictions and show an input MRI, ground-truth mask, and predicted mask.
 

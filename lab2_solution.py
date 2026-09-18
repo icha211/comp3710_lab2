@@ -654,19 +654,25 @@ def run_oasis_unet(
 
     model = unet_model_multiclass(x_train.shape[1:], num_classes)
     class_pixel_counts = np.bincount(y_train.reshape(-1), minlength=num_classes).astype(np.float64)
-    class_weights = class_pixel_counts.sum() / (num_classes * np.maximum(class_pixel_counts, 1.0))
-    class_weights[0] = min(class_weights[0], 0.25)
+    inverse_frequency = class_pixel_counts.sum() / (num_classes * np.maximum(class_pixel_counts, 1.0))
+    class_weights = np.sqrt(inverse_frequency / inverse_frequency.mean())
+    class_weights[0] = 0.25
 
     def combined_loss(y_true, y_pred):
         weighted_cross_entropy = weighted_categorical_crossentropy(class_weights)(y_true, y_pred)
-        return weighted_cross_entropy + multiclass_dice_loss(y_true, y_pred)
+        return 0.5 * weighted_cross_entropy + multiclass_dice_loss(y_true, y_pred)
 
     model.compile(optimizer=tf.keras.optimizers.Adam(3e-4), loss=combined_loss, metrics=["accuracy"])
     model.summary()
+    checkpoint_path = output_dir / "best_oasis_unet.weights.h5"
+    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        checkpoint_path, monitor="val_loss", save_best_only=True, save_weights_only=True
+    )
     history = model.fit(
-        train_dataset, validation_data=validate_dataset, epochs=epochs
+        train_dataset, validation_data=validate_dataset, epochs=epochs, callbacks=[checkpoint_callback]
     )
 
+    model.load_weights(checkpoint_path)
     model.save(output_dir / "oasis_unet.keras")
     print("Discrete test DSC per foreground label:")
     dice_scores = {label: [] for label in range(1, num_classes)}
