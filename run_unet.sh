@@ -28,6 +28,18 @@ echo "Host: $(hostname)"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi
 
-jupyter nbconvert --to notebook --execute --inplace part4_unet.ipynb \
+python - <<'PY'
+import importlib.util
+missing = [name for name in ("torch", "nbconvert") if importlib.util.find_spec(name) is None]
+if missing:
+  raise SystemExit("Missing Python packages: " + ", ".join(missing))
+import torch
+print("PyTorch:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+if not torch.cuda.is_available():
+  raise SystemExit("PyTorch cannot see the allocated GPU")
+PY
+
+python -m nbconvert --to notebook --execute --inplace part4_unet.ipynb \
   --ExecutePreprocessor.timeout=-1 \
   --ExecutePreprocessor.kernel_name=python3
