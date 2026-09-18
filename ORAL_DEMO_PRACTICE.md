@@ -27,10 +27,10 @@ The following earlier components have real evidence and can be presented as comp
 The three assessed recognition tasks are currently at different evidence levels:
 
 - VAE: **fulfilled for Task 1**. Slurm job `598512` completed successfully on an NVIDIA A100 with TensorFlow GPU support, and the manifold and model artifacts were saved.
-- OASIS multi-class U-Net: implemented, but no completed OASIS run or per-label DSC result has been recorded.
+- OASIS multi-class U-Net: **completed with partial evidence**. Slurm job `598598` produced the trained model, prediction visualisation, loss history, and per-label DSC results, but the three DSC values did not reach the required `>0.9` threshold.
 - GAN: implemented with checkpoints and saved-image support, but no completed OASIS run or realism evidence has been recorded.
 
-Therefore, the current evidence supports Task 1 and the Easy level maximum of **3/7 recognition-task marks**, but **does not yet support claiming the full 7/7**.
+Therefore, the current evidence supports Task 1 and completed partial work for Task 2, but it does not yet support the full Medium `5/7` level or the full `7/7` level.
 
 ## Important Scope Check Before The Demo
 
@@ -880,20 +880,30 @@ Added `build_resnet18` (CIFAR-style 3x3 stem, 4 stages of 2 residual blocks each
 ### Part 4, Recognition Tasks (7 Marks) — Task 1 fulfilled; Tasks 2 and 3 pending
 
 - **Task 1, VAE — FULFILLED:** Slurm job `598512` completed with `COMPLETED` and exit code `0:0` in 57 seconds on node `a100-9`. TensorFlow detected `GPU:0` as an NVIDIA A100. The run completed one epoch with loss `17064.3125` and saved `vae_latent_manifold.png`, `vae_loss.csv`, `encoder.keras`, and `decoder.keras` under `demo_outputs/vae`. This is sufficient evidence for Task 1, including the required 2D manifold visualisation.
-- **Task 2, OASIS multi-class U-Net:** implemented with four-channel **softmax** output, one-hot labels, categorical cross-entropy, and **discrete per-label DSC using `argmax`** for labels 1, 2, and 3. No completed OASIS evidence has been recorded yet.
+- **Task 2, OASIS multi-class U-Net — PARTIAL:** Slurm job `598598` completed on an NVIDIA A100 and saved `oasis_unet.keras`, `segmentation_predictions.png`, `test_dsc.txt`, and `unet_training_loss.csv`. The held-out test DSC values were Label 1 `0.7861`, Label 2 `0.8050`, and Label 3 `0.8350`. These prove the pipeline and inference work, but they do not satisfy the required `>0.9` DSC for every foreground label.
 - **Task 3, GAN:** implemented with a DCGAN-style generator/discriminator, alternating updates, fixed-noise sample grids, per-epoch generated images, loss CSV/plot, and checkpoints. No completed OASIS realism evidence has been recorded yet.
 
-**Important honesty note:** the VAE result is now completed and supported by the Slurm log and saved artifacts. The OASIS per-label DSC and GAN realism evidence are still missing, so do not claim the Medium or Hard levels yet.
+**Important honesty note:** the VAE result is completed and supported by the Slurm log and saved artifacts. The OASIS per-label DSC evidence exists, but the scores are below the required threshold. GAN realism evidence is still missing, so do not claim the Medium or Hard levels yet.
+
+### How To Explain The Current U-Net Result
+
+Say:
+
+"The OASIS multi-class U-Net ran successfully on an NVIDIA A100. It uses four softmax output channels, one-hot encoded masks, categorical cross-entropy, and `argmax` during inference. The test pipeline saved the model, loss history, and an input/ground-truth/prediction visualisation. The measured discrete DSC values were 0.7861, 0.8050, and 0.8350 for labels 1, 2, and 3. This confirms the implementation and evaluation pipeline work, but the results are below the task requirement of greater than 0.9 for every foreground label, so I report this as partial rather than full Task 2 credit."
+
+Explain the limitation:
+
+"Pixel accuracy was high, but accuracy is dominated by background pixels and therefore does not prove good segmentation of the smaller foreground classes. The per-label DSC is the more relevant metric here. I would improve the result with more training, class-weighted or Dice-based loss, augmentation, and validation-based checkpoint selection, while keeping the test set untouched."
 
 ### Marking Criteria Self-Check (Section 4.5)
 
-- Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, the TF-tensor DFT A100 path, and the OASIS VAE are run and verified. DAWNBench still needs its required run; OASIS U-Net and GAN still need completed executions and saved evidence.
+- Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, the TF-tensor DFT A100 path, the OASIS VAE, and a completed but below-threshold OASIS U-Net run are evidenced. DAWNBench still needs its required run; the U-Net needs higher DSC and the GAN still needs completed realism evidence.
 - GitHub practices, README, meaningful commits: verify this repo actually has a README and sensible commit history before claiming this mark; check with `git log --oneline` if unsure.
 - Code commented, structured, follows engineering practice: the file stays organised as one function per experiment with local imports, which is a genuine strength to point out.
 
 ### Honest One-Line Summary For The Demonstrator
 
-"DFT, the tensor DFT on an A100, LFW PCA/CNN, manual eigenfaces, the binary U-Net warm-up, and the OASIS VAE have real results. This supports the Easy level maximum of 3/7 for the recognition tasks. DAWNBench is implemented but not yet run, and I still need completed OASIS U-Net DSC evidence and GAN realism evidence before claiming the full 7/7."
+"DFT, the tensor DFT on an A100, LFW PCA/CNN, manual eigenfaces, the binary U-Net warm-up, the OASIS VAE, and a completed OASIS U-Net run have real results. The OASIS U-Net DSC values are below the required threshold, so I currently claim the VAE task and partial U-Net work only. I still need DSC above 0.9 for all foreground labels and GAN realism evidence before claiming the full 7/7."
 
 ## Last Minute Practice Checklist
 
