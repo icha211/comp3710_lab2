@@ -621,6 +621,19 @@ def multiclass_dice_loss(y_true, y_pred):
     return 1.0 - tf.reduce_mean(foreground_dice)
 
 
+def weighted_categorical_crossentropy(class_weights):
+    import tensorflow as tf
+
+    weights = tf.constant(class_weights, dtype=tf.float32)
+
+    def loss(y_true, y_pred):
+        pixel_weights = tf.reduce_sum(y_true * weights, axis=-1)
+        cross_entropy = tf.keras.losses.categorical_crossentropy(y_true, y_pred)
+        return tf.reduce_mean(cross_entropy * pixel_weights, axis=(1, 2))
+
+    return loss
+
+
 def run_oasis_unet(
     data_root: Path, epochs: int, num_classes: int = 4, output_dir: Path = Path("demo_outputs/oasis_unet")
 ) -> None:
@@ -640,8 +653,13 @@ def run_oasis_unet(
     )
 
     model = unet_model_multiclass(x_train.shape[1:], num_classes)
+    class_pixel_counts = np.bincount(y_train.reshape(-1), minlength=num_classes).astype(np.float64)
+    class_weights = class_pixel_counts.sum() / (num_classes * np.maximum(class_pixel_counts, 1.0))
+    class_weights[0] = min(class_weights[0], 0.25)
+
     def combined_loss(y_true, y_pred):
-        return tf.keras.losses.categorical_crossentropy(y_true, y_pred) + multiclass_dice_loss(y_true, y_pred)
+        weighted_cross_entropy = weighted_categorical_crossentropy(class_weights)(y_true, y_pred)
+        return weighted_cross_entropy + multiclass_dice_loss(y_true, y_pred)
 
     model.compile(optimizer=tf.keras.optimizers.Adam(3e-4), loss=combined_loss, metrics=["accuracy"])
     model.summary()
