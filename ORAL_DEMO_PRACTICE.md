@@ -250,6 +250,132 @@ A: It converts arrays to 32-bit floating point, which is standard for numerical 
 
 A: I would save plots and trained model outputs, add fixed seeds for TensorFlow, add a test mode with smaller samples, log metrics to files, and run the cluster-only tasks in the correct environment.
 
+## Recognition Task Question Bank
+
+### VAE Questions
+
+**Q: What is the purpose of a VAE?**
+
+A: A VAE learns a compact probabilistic latent representation of MRI images and can decode latent samples into new brain-slice images. Unlike an ordinary autoencoder, it regularises the latent space so nearby points produce meaningful outputs.
+
+**Q: What does the encoder output?**
+
+A: It outputs a latent mean, `z_mean`, and a latent log variance, `z_log_var`. These define the Gaussian distribution from which the latent vector is sampled.
+
+**Q: Why use the reparameterisation trick?**
+
+A: Direct random sampling would block gradient propagation. I write the sample as $z = \mu + \sigma\epsilon$, where $\epsilon$ is random noise, so gradients can still flow through the mean and variance.
+
+**Q: What are the two VAE loss terms?**
+
+A: Reconstruction loss measures how close the decoded image is to the input. KL divergence regularises the latent distribution toward a standard normal distribution. The total loss is reconstruction loss plus KL loss.
+
+**Q: How did you create the manifold?**
+
+A: Because the latent dimension is 2, I created a grid of coordinates between -2.5 and 2.5, decoded every coordinate, and tiled the resulting images into one manifold figure.
+
+**Q: What evidence proves your VAE task is complete?**
+
+A: Slurm job `598512` completed with exit code `0:0` on an NVIDIA A100. The saved evidence is `demo_outputs/vae/vae_latent_manifold.png`, `vae_loss.csv`, `encoder.keras`, and `decoder.keras`. The manifold image is the required visualisation.
+
+**Q: What does the VAE loss value prove?**
+
+A: It proves that training completed and produced a measurable objective, but the manifold visualisation is also necessary to judge whether the latent space produces meaningful images. A loss value alone does not prove realism.
+
+### OASIS Multi-class U-Net Questions
+
+**Q: Why is this U-Net different from the binary practice U-Net?**
+
+A: The practice U-Net has one sigmoid output for foreground versus background. The OASIS U-Net has four softmax channels because each pixel belongs to one of four mutually exclusive labels.
+
+**Q: Why use softmax?**
+
+A: Softmax converts the four output scores at each pixel into probabilities that sum to one. `argmax` then chooses the most likely class for the final discrete segmentation map.
+
+**Q: Why one-hot encode the masks?**
+
+A: Each integer mask label becomes a four-element vector. This matches the four-channel softmax output and makes categorical cross-entropy appropriate.
+
+**Q: Why is pixel accuracy not enough?**
+
+A: Background pixels can dominate the image. A model can have high accuracy while missing smaller foreground tissues. The task therefore requires a separate discrete DSC for labels 1, 2, and 3.
+
+**Q: How is DSC calculated?**
+
+A: For each label, I compare the hard predicted mask with the ground-truth mask using $DSC = 2|A \cap B|/(|A|+|B|)$. I average the per-image scores over the held-out test set.
+
+**Q: What does the completed U-Net run prove?**
+
+A: It proves that OASIS data loading, the four-class architecture, one-hot training, A100 execution, held-out inference, discrete DSC evaluation, model saving, and prediction visualisation all work.
+
+**Q: What were your latest U-Net DSC values?**
+
+A: The latest recorded values were Label 1 `0.8201`, Label 2 `0.8588`, and Label 3 `0.8842`. They improved over the earlier run, but they are still below the required `>0.9` for every foreground label.
+
+**Q: Can you claim full Task 2 marks?**
+
+A: No. I can claim a completed and working pipeline with partial evidence, but full Task 2 credit requires all three foreground DSC values to exceed `0.9`.
+
+**Q: Why did you add Dice and Tversky-style losses?**
+
+A: Cross-entropy and accuracy can be dominated by background pixels. Foreground Dice and Tversky-style terms focus optimization on tissue overlap and missed foreground pixels. This is a justified improvement, but it must be evaluated using a new held-out test result.
+
+**Q: What U-Net evidence should you show?**
+
+A: Show the Slurm log proving A100 execution, `test_dsc.txt`, `segmentation_predictions.png`, `oasis_unet.keras`, and `unet_training_loss.csv`. Also explain that the test set was not used for training.
+
+### GAN Questions
+
+**Q: What are the two GAN networks?**
+
+A: The generator maps a random latent vector to a synthetic MRI slice. The discriminator receives real or generated slices and predicts whether each is real.
+
+**Q: How are the networks trained?**
+
+A: The discriminator learns from real targets of one and fake targets of zero. The generator is trained so its generated images receive the target one from the discriminator. These updates alternate for every batch.
+
+**Q: Why use `tanh` in the generator?**
+
+A: The real images are scaled to the range [-1, 1], matching the generator's `tanh` output. Consistent scaling helps stabilize adversarial training.
+
+**Q: What is mode collapse?**
+
+A: Mode collapse occurs when the generator produces very similar images for different latent vectors. The samples may look superficially realistic but lack diversity.
+
+**Q: Why save fixed-noise grids?**
+
+A: The same latent vectors are decoded after each epoch, so changes in the generated images reflect training rather than different random inputs.
+
+**Q: What proves the GAN task is complete?**
+
+A: I need a completed OASIS run, generator checkpoints, per-epoch generated grids, a final generated grid, loss values and curves, and visual evidence that the slices are realistic and varied. The instructor judges realism, so losses alone are insufficient.
+
+**Q: Can you currently claim full GAN marks?**
+
+A: No. The GAN implementation and artifact-saving code exist, but I have not yet produced a completed OASIS GAN run and realism evidence.
+
+### Evidence And Marks Questions
+
+**Q: What is currently fulfilled?**
+
+A: The VAE task is fulfilled with a completed A100 run and saved 2D manifold. Earlier DFT, tensor DFT, LFW/CNN, eigenfaces, and binary practice U-Net results are also verified.
+
+**Q: What is still missing for Medium?**
+
+A: The OASIS U-Net must produce DSC above `0.9` for labels 1, 2, and 3 on the held-out test set. The current values are below that threshold.
+
+**Q: What is still missing for Hard?**
+
+A: Medium must first be achieved, then the GAN must produce realistic, varied OASIS brain slices with saved losses, generated grids, and checkpoints.
+
+**Q: Why can’t you claim a mark from implemented code?**
+
+A: The rubric requires functional results and evidence. Code structure shows the intended method, but only a completed run on the required data can prove the metric and visualisation requirements.
+
+**Q: What would you show if a job fails during the demo?**
+
+A: I would show the last verified log and explain the failure accurately. I would identify whether it was a cluster resource issue, environment issue, memory issue, or model issue rather than claiming an unverified result.
+
 ### DFT Questions
 
 **Q: What is the difference between time domain and frequency domain?**
