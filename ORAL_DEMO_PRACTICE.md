@@ -376,6 +376,132 @@ A: The rubric requires functional results and evidence. Code structure shows the
 
 A: I would show the last verified log and explain the failure accurately. I would identify whether it was a cluster resource issue, environment issue, memory issue, or model issue rather than claiming an unverified result.
 
+## Expanded Oral Questions: Parts 1-4
+
+Use these longer answers when the demonstrator asks you to explain a concept in detail.
+
+### Part 1: Fourier Transform And DFT
+
+**Q: What is a Fourier transform?**
+
+A: A Fourier transform changes the representation of a signal from the time or spatial domain into the frequency domain. Instead of asking how the signal changes over time, I ask which sinusoidal frequencies are present and how strongly each contributes. A large magnitude at a frequency means that frequency is important in the signal. For sampled data, the discrete Fourier transform, or DFT, is the finite version of this idea:
+
+$$
+X_k = \sum_{n=0}^{N-1} x_n e^{-2\pi i kn/N}.
+$$
+
+Here, $x_n$ is a signal sample, $k$ is a frequency bin, and $X_k$ is the complex coefficient for that bin. The magnitude $|X_k|$ describes the strength of the frequency and the phase describes its alignment.
+
+**Q: What is the difference between DFT and FFT?**
+
+A: The DFT is the mathematical transform. My `naive_dft` function computes it directly with two loops: one over frequency bins and one over samples. That costs $O(N^2)$. The FFT is an efficient algorithm for computing the same DFT, using structure and reuse in the calculation to achieve approximately $O(N\log N)$. FFT changes the computation speed, not the mathematical result.
+
+**Q: What does your Fourier graph show for 1, 3, 5, 20, or 50 harmonics?**
+
+A: The original square wave has sharp transitions, but a finite sum of smooth sine waves can only approximate those transitions. With one harmonic, the graph looks like a single sine wave and is a poor approximation. With 3 or 5 odd harmonics, the flat sections become more square-like and the transitions become sharper. With 20 and 50 harmonics, the approximation is much closer to the square wave. Near each discontinuity there is still overshoot and ringing, called the Gibbs phenomenon. Adding more harmonics narrows the ringing region but does not completely remove the overshoot.
+
+The code uses odd harmonics because the symmetric square wave has only odd sine terms. The coefficient decreases approximately as $1/k$, so higher harmonics add fine detail but contribute less amplitude.
+
+**Q: What does the frequency spectrum graph tell you?**
+
+A: The spectrum has strong peaks at the fundamental frequency and its odd multiples. That matches the Fourier-series construction: the square wave was built from odd sine harmonics. The peak magnitudes decrease as the harmonic number increases. This graph verifies that the time-domain square wave contains the expected frequency components.
+
+**Q: What does the naive DFT code do?**
+
+A: For each output frequency bin, it multiplies every input sample by a complex exponential for that frequency and adds the contributions. The complex exponential acts like a reference sinusoid. If the signal contains that frequency, the terms add constructively and the magnitude is large; otherwise they largely cancel. The nested loops make the implementation clear but computationally expensive.
+
+**Q: What are the three timing methods and which is fastest?**
+
+A: The three methods are direct tensor DFT on the CPU, direct tensor DFT on the GPU, and the built-in TensorFlow FFT. For larger inputs, the usual order is:
+
+1. Fastest: `tf.signal.fft`, because it uses approximately $O(N\log N)$ work.
+2. Second: tensor DFT on the A100 GPU, because the GPU parallelises the matrix operations, although the algorithm is still $O(N^2)$.
+3. Slowest: tensor DFT on the CPU, because it performs the same quadratic work with much less parallel hardware.
+
+For example, at $N=2048$ in the recorded A100 run, CPU tensor DFT was `0.0346 s`, GPU tensor DFT was `0.0060 s`, and FFT was `0.0026 s`.
+
+**Q: Why can the GPU be slower for small N?**
+
+A: Small inputs may not contain enough work to keep the GPU busy. GPU kernel-launch, memory-transfer, and initialization overhead can be larger than the computation itself. CPU execution may also benefit from lower launch overhead. As $N$ grows, the parallel matrix work dominates the overhead and the GPU advantage becomes clearer. This is why individual small-size timings can be non-monotonic.
+
+### Parts 2 And 3.1: PCA, Random Forest, And CNN
+
+**Q: What is PCA and why use it?**
+
+A: Principal component analysis is an unsupervised dimensionality-reduction method. It finds orthogonal directions that capture the greatest variance in the training data. I use PCA because flattened face images have many pixel features, and a smaller feature representation can reduce computation, noise, and storage. The trade-off is that PCA preserves variance without using identity labels, so the highest-variance directions are not guaranteed to be the best class-separating directions.
+
+**Q: Explain the PCA process step by step.**
+
+A: First, I flatten each grayscale image into one feature vector. Second, I fit PCA on the training vectors only, so test information does not leak into the model. Third, PCA centres the training data around its mean face and finds orthogonal principal directions. Fourth, I keep a selected number of components and project both training and test images into that lower-dimensional coordinate system. Finally, the classifier uses those projected coordinates instead of the original pixels.
+
+**Q: What does the compactness plot mean?**
+
+A: The compactness plot shows cumulative explained variance against the number of principal components. It tells me how much of the variation in the training faces is retained as I keep more components. A steep early rise means a small number of components captures a lot of information. When the curve flattens, additional components provide diminishing returns. It helps justify a component count such as 150 because I can see the information retained versus the feature dimension.
+
+**Q: What is a Random Forest?**
+
+A: A Random Forest is an ensemble of decision trees. Each tree learns rules for separating classes, while random subsets of data and features make the trees diverse. Their predictions are combined, usually by majority vote for classification. In this project, the forest receives PCA face features and predicts the person's identity. It provides a classical non-neural baseline.
+
+**Q: Why was PCA plus Random Forest less accurate than the CNN?**
+
+A: The PCA projection is label-blind: it preserves general image variance, not necessarily the variation that separates people. The Random Forest then works on this compressed representation. The CNN learns convolutional features directly from the images and optimizes them for the identity labels, so it can learn task-specific facial patterns. In my recorded run, PCA plus Random Forest reached `55.28%`, while the CNN reached `72.67%` test accuracy. The comparison also has experimental differences, so I describe it as evidence that the CNN performed better in this run, not as a universal rule.
+
+**Q: What is a CNN?**
+
+A: A convolutional neural network learns spatial features from grid-shaped data such as images. A convolution applies learned local filters across the image. Early filters can detect edges and textures; deeper filters combine them into more complex patterns. Pooling reduces spatial resolution and computation while retaining strong local responses. Dense layers combine the learned features, and softmax produces one probability per identity.
+
+**Q: Explain how your CNN is trained.**
+
+A: The images are split into training and test sets, and a validation portion is taken from the training data. The grayscale channel dimension is added before the images enter the model. The model performs a forward pass, producing class probabilities. Sparse categorical cross-entropy compares those probabilities with integer identity labels. Adam updates the weights using gradients from the loss. This repeats over batches and epochs. Validation accuracy monitors generalization, and the untouched test set is evaluated after training.
+
+**Q: What do ReLU, pooling, dropout, and softmax do?**
+
+A: ReLU, defined as $\max(0,x)$, adds non-linearity and keeps positive activations. Max pooling reduces spatial dimensions and retains the strongest local response. Dropout randomly disables some units during training to reduce overfitting. Softmax converts the final class scores into probabilities that sum to one.
+
+### Part 3.2: ResNet-18 And DAWNBench
+
+**Q: What is ResNet-18?**
+
+A: ResNet-18 is an 18-layer residual convolutional network. It contains a convolutional stem followed by four stages of residual blocks. Each residual block learns a transformation and adds the original input through a shortcut connection. The final global average pooling and dense layer produce class probabilities. My CIFAR-style version uses a small 3-by-3 stem without the large-image initial max-pooling layer.
+
+**Q: How is ResNet-18 trained?**
+
+A: CIFAR-10 images are normalized to the range 0 to 1 and split into training and test data. For each batch, the network performs a forward pass, computes sparse categorical cross-entropy against the integer class labels, and backpropagates gradients through the convolutional and residual layers. Adam updates the weights. Validation is monitored during `fit`, and final test loss and accuracy are measured afterward. Mixed precision can reduce memory use and accelerate matrix operations on the A100, while the final output remains float32 for stable probabilities.
+
+**Q: What are the skip connections in ResNet-18?**
+
+A: A residual skip connection carries the block input directly to the block output. If the dimensions match, it is an identity path. If the number of filters or spatial size changes, a 1-by-1 convolution with the appropriate stride projects the shortcut to the new shape. The main path and shortcut are added before the final ReLU.
+
+**Q: How is a ResNet skip connection different from a U-Net skip connection?**
+
+A: ResNet adds the shortcut feature map element-by-element inside a block. U-Net concatenates encoder features with decoder features at matching spatial scales. ResNet skips help optimization and gradient flow through depth. U-Net skips primarily preserve high-resolution spatial information needed for accurate pixel boundaries.
+
+**Q: What is the difference between ResNet-18 and the CNN face classifier?**
+
+A: Both use convolution and pooling-like spatial processing, but the face CNN is a small sequential classifier with two convolution layers and dense layers. ResNet-18 is deeper and uses residual blocks, allowing information and gradients to pass through shortcut paths. ResNet-18 is designed for CIFAR-10 image classification, while the face CNN is designed for the smaller LFW identity task.
+
+**Q: What is DAWNBench evidence?**
+
+A: I would need a completed Rangpur GPU run showing the ResNet-18 training time and final CIFAR-10 accuracy, then compare them with the task targets. My current documentation says this component is implemented but not yet run, so I must not claim its timing or accuracy yet.
+
+### Part 4: Uses And Model Selection
+
+**Q: What are practical uses of a VAE?**
+
+A: VAEs can learn compact representations, generate new samples, interpolate between images, detect unusual examples, and support semi-supervised learning. For MRI data, the latent space can help explore variations in brain appearance, but generated images still need clinical and visual validation.
+
+**Q: What are practical uses of a U-Net?**
+
+A: U-Net is useful for medical image segmentation, cell segmentation, satellite-image masks, and other pixel-level labeling problems. It is especially useful when precise boundaries matter because skip connections retain fine spatial information.
+
+**Q: What are practical uses of a GAN?**
+
+A: GANs can generate synthetic training examples, support data augmentation, learn image distributions, and create realistic images. In medical imaging, synthetic data must be checked carefully for artifacts, privacy concerns, and mode collapse.
+
+**Q: When would you choose PCA, a CNN, a VAE, or a U-Net?**
+
+A: I would choose PCA when dimensionality reduction or a compact classical feature representation is needed. I would choose a CNN for supervised image classification. I would choose a VAE for a structured latent space and probabilistic generation. I would choose a U-Net when the output must label every pixel rather than assign one label to the whole image.
+
 ### DFT Questions
 
 **Q: What is the difference between time domain and frequency domain?**
@@ -1412,3 +1538,9 @@ Then stop and let the tutor ask questions. A short, accurate answer is better th
 
 **Q: The code throws an error live. What do you do?**  
 "I read the traceback, identify whether it is an environment, path, data-shape, or model-contract issue, and show the last verified output rather than pretending it ran. For example, I would verify the dataset path, expected image-mask pairs, tensor shapes, output channels, and loss label format before changing code."
+
+
+what is transform
+
+frequency
+  
