@@ -10,8 +10,7 @@
 set -euo pipefail
 
 cd "$HOME/comp3710_lab2"
-source "$HOME/miniconda3/etc/profile.d/conda.sh"
-conda activate ./pytorch-env
+source "$HOME/comp3710_lab2/venv/bin/activate"
 
 export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}"
