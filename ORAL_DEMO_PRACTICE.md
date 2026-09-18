@@ -895,6 +895,20 @@ Explain the limitation:
 
 "Pixel accuracy was high, but accuracy is dominated by background pixels and therefore does not prove good segmentation of the smaller foreground classes. The per-label DSC is the more relevant metric here. I would improve the result with more training, class-weighted or Dice-based loss, augmentation, and validation-based checkpoint selection, while keeping the test set untouched."
 
+### What This U-Net Run Proves
+
+This completed run proves that:
+
+- The OASIS image and mask folders were found and loaded correctly.
+- The model is genuinely multi-class, with four softmax output channels.
+- The masks were converted to one-hot labels for categorical cross-entropy.
+- Training completed on an NVIDIA A100 rather than the login CPU.
+- Inference ran on the held-out test set using `argmax` class predictions.
+- Per-label discrete DSC was calculated and saved for labels 1, 2, and 3.
+- The trained model, loss history, and prediction visualisation were saved for demonstration.
+
+This run does **not** prove that Task 2 reached full marks, because every foreground DSC must be greater than `0.9`. It is valid evidence of a working implementation and supports partial credit, but the reported values must be stated honestly as below threshold.
+
 ### Marking Criteria Self-Check (Section 4.5)
 
 - Code functions and completes tasks, hosted on GitHub, results explained: DFT, LFW/CNN, binary U-Net, manual eigenfaces, the TF-tensor DFT A100 path, the OASIS VAE, and a completed but below-threshold OASIS U-Net run are evidenced. DAWNBench still needs its required run; the U-Net needs higher DSC and the GAN still needs completed realism evidence.
