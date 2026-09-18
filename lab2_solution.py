@@ -621,27 +621,39 @@ def run_oasis_unet(
     x_validate, y_validate = load_oasis_multiclass_split(data_root, "validate", num_classes)
     x_test, y_test = load_oasis_multiclass_split(data_root, "test", num_classes)
 
-    y_train_onehot = tf.keras.utils.to_categorical(y_train, num_classes)
-    y_validate_onehot = tf.keras.utils.to_categorical(y_validate, num_classes)
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)).batch(8).map(
+        lambda images, labels: (images, tf.one_hot(labels, num_classes)), num_parallel_calls=1
+    )
+    validate_dataset = tf.data.Dataset.from_tensor_slices((x_validate, y_validate)).batch(8).map(
+        lambda images, labels: (images, tf.one_hot(labels, num_classes)), num_parallel_calls=1
+    )
 
     model = unet_model_multiclass(x_train.shape[1:], num_classes)
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="categorical_crossentropy", metrics=["accuracy"])
     model.summary()
     history = model.fit(
-        x_train, y_train_onehot, validation_data=(x_validate, y_validate_onehot), epochs=epochs, batch_size=8
+        train_dataset, validation_data=validate_dataset, epochs=epochs
     )
 
     model.save(output_dir / "oasis_unet.keras")
-    predicted_labels = np.argmax(model.predict(x_test, batch_size=2, verbose=0), axis=-1)
     print("Discrete test DSC per foreground label:")
-    dice_scores = {}
+    dice_scores = {label: [] for label in range(1, num_classes)}
+    preview_predictions = []
+    for start in range(0, len(x_test), 2):
+        batch_predictions = np.argmax(model.predict(x_test[start : start + 2], verbose=0), axis=-1)
+        preview_predictions.extend(batch_predictions[: max(0, 4 - len(preview_predictions))])
+        for offset, prediction in enumerate(batch_predictions):
+            sample_index = start + offset
+            for label in range(1, num_classes):
+                dice_scores[label].append(discrete_dice_per_label(y_test[sample_index], prediction, label))
+
+    mean_dice_scores = {}
     for label in range(1, num_classes):
-        scores = [discrete_dice_per_label(y_test[i], predicted_labels[i], label) for i in range(len(y_test))]
-        dice_scores[label] = float(np.mean(scores))
-        print(f"  Label {label}: mean DSC = {dice_scores[label]:.4f}")
+        mean_dice_scores[label] = float(np.mean(dice_scores[label]))
+        print(f"  Label {label}: mean DSC = {mean_dice_scores[label]:.4f}")
 
     (output_dir / "test_dsc.txt").write_text(
-        "\n".join(f"Label {label}: mean DSC = {score:.4f}" for label, score in dice_scores.items()),
+        "\n".join(f"Label {label}: mean DSC = {score:.4f}" for label, score in mean_dice_scores.items()),
         encoding="utf-8",
     )
     np.savetxt(output_dir / "unet_training_loss.csv", np.asarray(history.history["loss"]), delimiter=",", header="loss", comments="")
@@ -650,7 +662,7 @@ def run_oasis_unet(
     for row in range(min(4, len(x_test))):
         axes[row, 0].imshow(x_test[row, ..., 0], cmap="gray")
         axes[row, 1].imshow(y_test[row], cmap="viridis", vmin=0, vmax=num_classes - 1)
-        axes[row, 2].imshow(predicted_labels[row], cmap="viridis", vmin=0, vmax=num_classes - 1)
+        axes[row, 2].imshow(preview_predictions[row], cmap="viridis", vmin=0, vmax=num_classes - 1)
         for column in range(3):
             axes[row, column].axis("off")
     axes[0, 0].set_title("Image")
