@@ -631,7 +631,8 @@ def run_oasis_unet(
         x_train, y_train_onehot, validation_data=(x_validate, y_validate_onehot), epochs=epochs, batch_size=8
     )
 
-    predicted_labels = np.argmax(model.predict(x_test, verbose=0), axis=-1)
+    model.save(output_dir / "oasis_unet.keras")
+    predicted_labels = np.argmax(model.predict(x_test, batch_size=2, verbose=0), axis=-1)
     print("Discrete test DSC per foreground label:")
     dice_scores = {}
     for label in range(1, num_classes):
@@ -643,7 +644,6 @@ def run_oasis_unet(
         "\n".join(f"Label {label}: mean DSC = {score:.4f}" for label, score in dice_scores.items()),
         encoding="utf-8",
     )
-    model.save(output_dir / "oasis_unet.keras")
     np.savetxt(output_dir / "unet_training_loss.csv", np.asarray(history.history["loss"]), delimiter=",", header="loss", comments="")
 
     figure, axes = plt.subplots(4, 3, figsize=(9, 12))
