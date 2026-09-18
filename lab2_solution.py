@@ -621,6 +621,20 @@ def multiclass_dice_loss(y_true, y_pred):
     return 1.0 - tf.reduce_mean(foreground_dice)
 
 
+def foreground_tversky_loss(y_true, y_pred, false_negative_weight=0.7):
+    import tensorflow as tf
+
+    smooth = tf.constant(1e-6, dtype=tf.float32)
+    true_positive = tf.reduce_sum(y_true[:, :, :, 1:] * y_pred[:, :, :, 1:], axis=(1, 2))
+    false_positive = tf.reduce_sum((1.0 - y_true[:, :, :, 1:]) * y_pred[:, :, :, 1:], axis=(1, 2))
+    false_negative = tf.reduce_sum(y_true[:, :, :, 1:] * (1.0 - y_pred[:, :, :, 1:]), axis=(1, 2))
+    tversky = (true_positive + smooth) / (
+        true_positive + (1.0 - false_negative_weight) * false_positive
+        + false_negative_weight * false_negative + smooth
+    )
+    return 1.0 - tf.reduce_mean(tversky)
+
+
 def weighted_categorical_crossentropy(class_weights):
     import tensorflow as tf
 
@@ -660,7 +674,11 @@ def run_oasis_unet(
 
     def combined_loss(y_true, y_pred):
         weighted_cross_entropy = weighted_categorical_crossentropy(class_weights)(y_true, y_pred)
-        return 0.5 * weighted_cross_entropy + multiclass_dice_loss(y_true, y_pred)
+        return (
+            0.5 * weighted_cross_entropy
+            + multiclass_dice_loss(y_true, y_pred)
+            + foreground_tversky_loss(y_true, y_pred)
+        )
 
     model.compile(optimizer=tf.keras.optimizers.Adam(3e-4), loss=combined_loss, metrics=["accuracy"])
     model.summary()
