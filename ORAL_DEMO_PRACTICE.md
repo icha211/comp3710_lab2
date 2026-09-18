@@ -32,6 +32,67 @@ The three assessed recognition tasks are currently at different evidence levels:
 
 Therefore, the current evidence supports Task 1 and completed partial work for Task 2, but it does not yet support the full Medium `5/7` level or the full `7/7` level.
 
+## Full Oral Transcript: Start To Finish
+
+Use this as one continuous explanation. Replace bracketed wording only when you have a new measured result.
+
+### Opening: What The Rubric Requires
+
+"This project has two related groups of work. The earlier lab components cover DFT, PCA and face recognition, CNN classification, eigenfaces, and a binary practice U-Net. The recognition section in the task sheet is graded separately: Task 1 is the VAE, Task 2 is the OASIS multi-class U-Net, and Task 3 is the GAN. Easy requires Task 1 for a maximum of 3 marks, Medium requires Tasks 1 and 2 for a maximum of 5 marks, and Hard requires all three for a maximum of 7 marks.
+
+For every task, I need more than code. I need to show that the code runs on the correct data, explain the model and loss, report results on the correct split, and show the required visual evidence. I keep training, validation, and test data separate. The validation data helps monitor development, while the test data is used only for final evaluation. This avoids claiming performance from data used to tune the model."
+
+### Dataset And Reproducible Workflow
+
+"The OASIS data is stored on Rangpur at `/home/groups/comp3710/OASIS`. It contains train, validate, and test PNG image folders, plus corresponding segmentation-mask folders. My command-line program uses `--part` to select one experiment, `--data-root` to locate the dataset, and `--epochs` to control training. For long jobs I submit a Slurm script requesting an A100, activate the virtual environment, load CUDA, write stdout and stderr logs, and save artifacts under `demo_outputs`. The login node is only the control terminal; the actual training runs on an allocated compute node."
+
+### Task 1: VAE Concept, Code, And Result
+
+"A variational autoencoder learns a compact probabilistic representation of images. The encoder receives an MRI slice and produces a latent mean and log variance. The reparameterisation trick samples a latent vector while preserving differentiability:
+
+$$
+z = \mu + \exp(0.5\log\sigma^2)\epsilon,
+\qquad \epsilon \sim \mathcal{N}(0,I).
+$$
+
+The decoder maps the latent vector back to an image. Training balances reconstruction quality with a KL-divergence regulariser. The reconstruction term makes the output resemble the input, while the KL term keeps the latent distribution close to a standard normal distribution so I can sample meaningful points.
+
+In the code, `build_vae` creates the convolutional encoder and transpose-convolution decoder. `run_vae` loads the OASIS images, streams them in batches to avoid loading the complete dataset into RAM, performs the custom gradient-tape training step, records loss, and samples a two-dimensional grid from the decoder. The grid becomes the required latent manifold visualisation.
+
+I ran the VAE on Slurm job `598512`. It completed successfully on an NVIDIA A100 with TensorFlow GPU support. The one-epoch loss was `17064.3125`. The saved evidence is `vae_latent_manifold.png`, `vae_loss.csv`, `encoder.keras`, and `decoder.keras` in `demo_outputs/vae`. This fulfils Task 1 and supports the Easy level maximum of 3 out of 7."
+
+### Task 2: Multi-class U-Net Concept, Code, And Result
+
+"A U-Net performs pixel-level segmentation. Unlike classification, which predicts one label for an image, segmentation predicts one class for every pixel. The encoder uses convolution and pooling to learn context. The bottleneck contains compressed high-level features. The decoder upsamples to the original resolution. Skip connections concatenate encoder features with decoder features so boundaries and spatial detail are not lost.
+
+For OASIS there are four mutually exclusive labels, so the final layer has four softmax channels. The masks are one-hot encoded and the training objective uses categorical cross-entropy plus a foreground Dice loss. The foreground Dice term is important because background pixels can dominate ordinary accuracy. At inference, `argmax` selects one class per pixel. I then calculate discrete DSC separately for labels 1, 2, and 3:
+
+$$
+DSC_c = \frac{2|A_c \cap B_c|}{|A_c|+|B_c|}.
+$$
+
+The code path is `load_oasis_multiclass_split` to load and remap masks, `unet_model_multiclass` to build the four-channel network, and `run_oasis_unet` to train, save the model, predict the held-out test set in small batches, calculate DSC, and save the prediction grid.
+
+The completed Slurm run produced `oasis_unet.keras`, `segmentation_predictions.png`, `test_dsc.txt`, and `unet_training_loss.csv`. The first measured DSC values were Label 1 `0.7861`, Label 2 `0.8050`, and Label 3 `0.8350`. This proves the OASIS pipeline, A100 training, test inference, discrete evaluation, and artifact saving work. However, the task requires every foreground label to exceed `0.9`, so this run is partial Task 2 evidence rather than full Medium credit."
+
+### Task 3: GAN Concept, Code, And Required Result
+
+"A GAN contains a generator and a discriminator. The generator maps a random latent vector to a synthetic 2D MRI slice. The discriminator receives either a real or generated slice and predicts whether it is real. The discriminator learns to distinguish the two distributions, while the generator learns to fool the discriminator. They are trained in alternating updates.
+
+In the code, `build_gan_generator` uses a dense layer, reshape, and transpose convolutions to increase resolution. `build_gan_discriminator` uses convolutional downsampling and a final real-versus-fake output. `run_gan` scales the images to match the generator's `tanh` output, calculates binary cross-entropy losses, updates both networks with gradient tapes, saves checkpoints, and generates fixed-noise image grids after each epoch.
+
+For full Task 3 evidence I must show `generated_epoch_001.png`, a later epoch grid, `generated_final.png`, `gan_losses.csv`, `gan_loss_curves.png`, and the checkpoint directory. I must inspect the images for realistic brain structure and variation, because loss values alone do not prove realism. I must also check for mode collapse, where different latent vectors produce nearly identical images. The instructor judges whether the generated brains are realistic enough for full GAN credit."
+
+### Marks And Honest Final Position
+
+"At this point, Task 1 is fulfilled. Task 2 has a completed working run but its DSC values are below the required threshold. Task 3 is implemented but still needs a completed OASIS run and visual realism evidence. Therefore I can honestly claim the VAE task and partial U-Net work, but not the full 7 out of 7 yet.
+
+To claim Medium, I need a new U-Net run where Labels 1, 2, and 3 are all above `0.9`. To claim Hard, I also need the GAN image grids, loss evidence, checkpoints, and convincing evidence of realistic, varied brains. I will report the measured result rather than converting high pixel accuracy or low training loss into a claim that the rubric does not support."
+
+### Closing Summary
+
+"The main idea across the project is matching the model contract to the task. DFT converts signals into frequency components. PCA reduces image dimensionality before classical classification. CNNs learn spatial features for image labels. A U-Net predicts a class at every pixel. A VAE learns a smooth latent image manifold. A GAN learns to generate new images through competition between a generator and discriminator. My code exposes each experiment as a reproducible command, saves the evidence, and evaluates the metric required by the task sheet."
+
 ## Important Scope Check Before The Demo
 
 The local `lab2_solution.py` contains the assessed OASIS VAE, multi-class U-Net, and GAN implementations, but implementation alone is not evidence of a mark. Only report a recognition-task result after the corresponding OASIS command completes and its required outputs are saved.
