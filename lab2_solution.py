@@ -610,6 +610,17 @@ def discrete_dice_per_label(y_true_labels: np.ndarray, y_pred_labels: np.ndarray
     return float(2.0 * np.logical_and(true_mask, pred_mask).sum() / denominator)
 
 
+def multiclass_dice_loss(y_true, y_pred):
+    import tensorflow as tf
+
+    smooth = tf.constant(1e-6, dtype=tf.float32)
+    intersection = tf.reduce_sum(y_true * y_pred, axis=(1, 2))
+    denominator = tf.reduce_sum(y_true + y_pred, axis=(1, 2))
+    dice_by_class = (2.0 * intersection + smooth) / (denominator + smooth)
+    foreground_dice = dice_by_class[:, 1:]
+    return 1.0 - tf.reduce_mean(foreground_dice)
+
+
 def run_oasis_unet(
     data_root: Path, epochs: int, num_classes: int = 4, output_dir: Path = Path("demo_outputs/oasis_unet")
 ) -> None:
@@ -629,7 +640,10 @@ def run_oasis_unet(
     )
 
     model = unet_model_multiclass(x_train.shape[1:], num_classes)
-    model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="categorical_crossentropy", metrics=["accuracy"])
+    def combined_loss(y_true, y_pred):
+        return tf.keras.losses.categorical_crossentropy(y_true, y_pred) + multiclass_dice_loss(y_true, y_pred)
+
+    model.compile(optimizer=tf.keras.optimizers.Adam(3e-4), loss=combined_loss, metrics=["accuracy"])
     model.summary()
     history = model.fit(
         train_dataset, validation_data=validate_dataset, epochs=epochs

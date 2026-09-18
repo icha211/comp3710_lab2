@@ -877,10 +877,10 @@ Unchanged, matches spec. The latest recorded 10-epoch run reached **72.7% test a
 
 Added `build_resnet18` (CIFAR-style 3x3 stem, 4 stages of 2 residual blocks each = 18 layers) and `run_dawnbench`, with an optional `--mixed-precision` flag. Run via `python lab2_solution.py --part dawnbench --epochs 5 --mixed-precision`. **Not yet run anywhere.** The >90%/94% accuracy and ~360-second targets are cluster-GPU claims and must be measured on Rangpur's A100 before you can honestly report a number.
 
-### Part 4, Recognition Tasks (7 Marks) — Task 1 fulfilled; Tasks 2 and 3 pending
+### Part 4, Recognition Tasks (7 Marks) — Task 1 fulfilled; Task 2 improvement run pending
 
 - **Task 1, VAE — FULFILLED:** Slurm job `598512` completed with `COMPLETED` and exit code `0:0` in 57 seconds on node `a100-9`. TensorFlow detected `GPU:0` as an NVIDIA A100. The run completed one epoch with loss `17064.3125` and saved `vae_latent_manifold.png`, `vae_loss.csv`, `encoder.keras`, and `decoder.keras` under `demo_outputs/vae`. This is sufficient evidence for Task 1, including the required 2D manifold visualisation.
-- **Task 2, OASIS multi-class U-Net — PARTIAL:** Slurm job `598598` completed on an NVIDIA A100 and saved `oasis_unet.keras`, `segmentation_predictions.png`, `test_dsc.txt`, and `unet_training_loss.csv`. The held-out test DSC values were Label 1 `0.7861`, Label 2 `0.8050`, and Label 3 `0.8350`. These prove the pipeline and inference work, but they do not satisfy the required `>0.9` DSC for every foreground label.
+- **Task 2, OASIS multi-class U-Net — PARTIAL, improvement pending:** Slurm job `598598` completed on an NVIDIA A100 and saved `oasis_unet.keras`, `segmentation_predictions.png`, `test_dsc.txt`, and `unet_training_loss.csv`. The held-out test DSC values were Label 1 `0.7861`, Label 2 `0.8050`, and Label 3 `0.8350`. The training objective has now been improved to combine categorical cross-entropy with foreground Dice loss, and a longer run should be submitted. These original values prove the pipeline and inference work, but they do not satisfy the required `>0.9` DSC for every foreground label.
 - **Task 3, GAN:** implemented with a DCGAN-style generator/discriminator, alternating updates, fixed-noise sample grids, per-epoch generated images, loss CSV/plot, and checkpoints. No completed OASIS realism evidence has been recorded yet.
 
 **Important honesty note:** the VAE result is completed and supported by the Slurm log and saved artifacts. The OASIS per-label DSC evidence exists, but the scores are below the required threshold. GAN realism evidence is still missing, so do not claim the Medium or Hard levels yet.
@@ -889,11 +889,11 @@ Added `build_resnet18` (CIFAR-style 3x3 stem, 4 stages of 2 residual blocks each
 
 Say:
 
-"The OASIS multi-class U-Net ran successfully on an NVIDIA A100. It uses four softmax output channels, one-hot encoded masks, categorical cross-entropy, and `argmax` during inference. The test pipeline saved the model, loss history, and an input/ground-truth/prediction visualisation. The measured discrete DSC values were 0.7861, 0.8050, and 0.8350 for labels 1, 2, and 3. This confirms the implementation and evaluation pipeline work, but the results are below the task requirement of greater than 0.9 for every foreground label, so I report this as partial rather than full Task 2 credit."
+"The OASIS multi-class U-Net ran successfully on an NVIDIA A100. It uses four softmax output channels, one-hot encoded masks, categorical cross-entropy plus a foreground Dice loss, and `argmax` during inference. The test pipeline saved the model, loss history, and an input/ground-truth/prediction visualisation. The first measured discrete DSC values were 0.7861, 0.8050, and 0.8350 for labels 1, 2, and 3. Those confirm the implementation and evaluation pipeline work, but they are below the task requirement of greater than 0.9, so I am running a longer foreground-aware training configuration before claiming full Task 2 credit."
 
 Explain the limitation:
 
-"Pixel accuracy was high, but accuracy is dominated by background pixels and therefore does not prove good segmentation of the smaller foreground classes. The per-label DSC is the more relevant metric here. I would improve the result with more training, class-weighted or Dice-based loss, augmentation, and validation-based checkpoint selection, while keeping the test set untouched."
+"Pixel accuracy was high, but accuracy is dominated by background pixels and therefore does not prove good segmentation of the smaller foreground classes. The per-label DSC is the more relevant metric here. I addressed the first limitation by adding foreground Dice loss alongside categorical cross-entropy and increasing the planned training duration; augmentation and validation-based checkpoint selection are further improvements, while the test set remains untouched."
 
 ### What This U-Net Run Proves
 
